@@ -4,8 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.Config
 import org.joda.time.DateTime
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, Matchers, FunSpecLike}
-import spark.jobserver.{BinaryStorageFailure, BinaryStored}
+import org.scalatest.{BeforeAndAfterAll, Matchers, FunSpecLike}
 import spark.jobserver.io.JobDAOActor._
 
 import scala.concurrent.Future
@@ -46,6 +45,13 @@ object JobDAOActorSpec {
     override def saveJobInfo(jobInfo: JobInfo): Unit = ???
 
     override def getJobConfigs: Future[Map[String, Config]] = ???
+
+    override def deleteBinary(appName: String): Unit = {
+      appName match {
+        case "failOnThis" => throw new Exception("deliberate failure")
+        case _ => //Do nothing
+      }
+    }
   }
 }
 
@@ -71,6 +77,18 @@ class JobDAOActorSpec extends TestKit(JobDAOActorSpec.system) with ImplicitSende
       daoActor ! SaveBinary("failOnThis", BinaryType.Jar, DateTime.now, Array[Byte]())
       expectMsgPF(3 seconds){
         case SaveBinaryResult(Failure(ex)) if ex.getMessage == "deliberate failure" =>
+      }
+    }
+
+    it("should respond when deleting Binary completes seccessfully") {
+      daoActor ! DeleteBinary("succeed")
+      expectMsg(DeleteBinaryResult(Success({})))
+    }
+
+    it("should respond when deleting Binary fails") {
+      daoActor ! DeleteBinary("failOnThis")
+      expectMsgPF(3 seconds){
+        case DeleteBinaryResult(Failure(ex)) if ex.getMessage == "deliberate failure" =>
       }
     }
 
